@@ -88,15 +88,16 @@ LIBPATH = $(MPI_HOME)/lib
 
 # scheduling and optimization options
 
-CFLAGS = -std=c89 -pedantic -fstrict-aliasing -fopenmp -Wall \
+CFLAGS = -std=c99 -pedantic -fstrict-aliasing -fopenmp -Wall \
          -Wno-long-long -Wno-format-overflow -Wstrict-prototypes -Werror \
-         -O -mfpmath=sse -mno-avx -DAVX -DFMA3 -DPM
+         -O2 -mfpmath=sse -mno-avx -DAVX -DFMA3 -DPM
 
 LFLAGS = -fopenmp
 
 
 ############################## do not change ###################################
 
+## don't tell me what to do!!
 SHELL=/bin/bash
 CC=mpicc
 CLINKER=$(CC)
@@ -109,7 +110,7 @@ PGMS= $(MAIN) $(MODULES)
 # rule to make dependencies
 
 $(addsuffix .d,$(PGMS)): %.d: %.c Makefile
-	@ $(GCC) -ansi $< -MM $(addprefix -I,$(INCPATH)) -o $@
+	@ $(CC) -ansi $< -MM $(addprefix -I,$(INCPATH)) -o $@
 
 
 # rule to compile source programs
