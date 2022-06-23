@@ -37,20 +37,20 @@ typedef struct
 } swexp_wsp_t;
 
 /* PAULI_C */
-extern void mul_pauli(float mu,pauli *m,weyl *s,weyl *r);
-extern void mul_pauli2(float mu,pauli *m,spinor *s,spinor *r);
+extern void mul_pauli(const float mu,const pauli *m,const weyl *s,weyl *r);
+extern void mul_pauli2(const float mu,const pauli *m,const spinor *s,spinor *r);
 extern void assign_pauli(int vol,pauli_dble *md,pauli *m);
-extern void apply_sw(int vol,float mu,pauli *m,spinor *s,spinor *r);
+extern void apply_sw(const int vol,const float mu,const pauli *m,const spinor *s,spinor *r);
 
 /* PAULI_DBLE_C */
-extern void mul_pauli_dble(double mu,pauli_dble *m,weyl_dble *s,weyl_dble *r);
+extern void mul_pauli_dble(const double mu,const pauli_dble *m,const weyl_dble *s,weyl_dble *r);
 extern pauli_wsp_t *alloc_pauli_wsp(void);
 extern void free_pauli_wsp(pauli_wsp_t *pwsp);
 extern int inv_pauli_dble(double mu,pauli_dble *m,pauli_wsp_t *pwsp,
                           pauli_dble *im);
 extern complex_dble det_pauli_dble(double mu,pauli_dble *m,pauli_wsp_t *pwsp);
-extern void apply_sw_dble(int vol,double mu,pauli_dble *m,
-                          spinor_dble *s,spinor_dble *r);
+extern void apply_sw_dble(const int vol,const double mu,const pauli_dble *m,
+                          const spinor_dble *s,spinor_dble *r);
 extern int apply_swinv_dble(int vol,double mu,pauli_dble *m,spinor_dble *s,
                             pauli_wsp_t *pwsp,spinor_dble *r);
 

@@ -144,15 +144,13 @@ static void doe( const float coe,
 		 const int *piup,
 		 const int *pidn,
 		 const su3 *u,
-		 spinor *pk,
+		 const spinor *pk,
 		 spin_t *rs)
 {
-   spinor *sp,*sm;
-
 /******************************** direction 0 *********************************/
 
-   sp=pk+piup[0];
-   sm=pk+pidn[0];
+   const spinor *sp=pk+piup[0];
+   const spinor *sm=pk+pidn[0];
 
    _avx_spinor_pair_load34(*sp,*sm);
 
@@ -380,10 +378,10 @@ static void doe( const float coe,
 		 const int *piup,
 		 const int *pidn,
 		 const su3 *u,
-		 spinor *pk,
+		 const spinor *pk,
 		 spin_t *rs)
 {
-   spinor *sp,*sm;
+   const spinor *sp,*sm;
 
 /******************************* direction +0 *********************************/
 
@@ -733,11 +731,11 @@ static void doe( const float coe,
 		 const int *piup,
 		 const int *pidn,
 		 const su3 *u,
-		 spinor *pk,
+		 const spinor *pk,
 		 spin_t *rs)
 {
-   spinor *sp,*sm;
-   su3_vector psi,chi;
+  const spinor *sp,*sm;
+  su3_vector psi,chi;
 
 /******************************* direction +0 *********************************/
 

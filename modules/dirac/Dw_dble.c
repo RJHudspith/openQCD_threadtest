@@ -149,8 +149,8 @@ __asm__ __volatile__ ("vmulpd %%ymm15, %%ymm3, %%ymm3 \n\t" \
                       "xmm3", "xmm4", "xmm5")
 
 
-static void doe(double coe,int *piup,int *pidn,
-                su3_dble *u,spinor_dble *pk,spin_t *rs)
+static void doe( const double coe, const int *piup, const int *pidn,
+		 const su3_dble *u,const spinor_dble *pk,spin_t *rs)
 {
    spinor_dble *sp,*sm;
 
@@ -309,8 +309,8 @@ static void doe(double coe,int *piup,int *pidn,
 }
 
 
-static void deo(double ceo,int *piup,int *pidn,
-                su3_dble *u,spin_t *rs,spinor_dble *pl)
+static void deo(const double ceo,const int *piup,const int *pidn,
+                const su3_dble *u,spin_t *rs,spinor_dble *pl)
 {
    spinor_dble *sp,*sm;
 
@@ -508,10 +508,10 @@ __asm__ __volatile__ ("mulpd %%xmm15, %%xmm3 \n\t" \
                       "xmm3", "xmm4", "xmm5")
 
 
-static void doe(double coe,int *piup,int *pidn,
-                su3_dble *u,spinor_dble *pk,spin_t *rs)
+static void doe(const double coe,const int *piup,const int *pidn,
+                const su3_dble *u,const spinor_dble *pk,spin_t *rs)
 {
-   spinor_dble *sp,*sm;
+   const spinor_dble *sp,*sm;
 
 /******************************* direction +0 *********************************/
 
@@ -812,8 +812,8 @@ static void doe(double coe,int *piup,int *pidn,
 }
 
 
-static void deo(double ceo,int *piup,int *pidn,
-                su3_dble *u,spin_t *rs,spinor_dble *pl)
+static void deo(const double ceo,const int *piup,const int *pidn,
+                const su3_dble *u,spin_t *rs,spinor_dble *pl)
 {
    spinor_dble *sp,*sm;
 
@@ -1111,8 +1111,8 @@ static void deo(double ceo,int *piup,int *pidn,
    (r).c3.im*=(c)
 
 
-static void doe(double coe,int *piup,int *pidn,
-                su3_dble *u,spinor_dble *pk,spin_t *rs)
+static void doe(const double coe,const int *piup,const int *pidn,
+                const su3_dble *u,const spinor_dble *pk,spin_t *rs)
 {
    spinor_dble *sp,*sm;
    su3_vector_dble psi,chi;
@@ -1241,8 +1241,8 @@ static void doe(double coe,int *piup,int *pidn,
 }
 
 
-static void deo(double ceo,int *piup,int *pidn,
-                su3_dble *u,spin_t *rs,spinor_dble *pl)
+static void deo(const double ceo,const int *piup,const int *pidn,
+                const su3_dble *u,spin_t *rs,spinor_dble *pl)
 {
    spinor_dble *sp,*sm;
    su3_vector_dble psi,chi;
@@ -1376,517 +1376,236 @@ static void deo(double ceo,int *piup,int *pidn,
 
 void Dw_dble(double mu,spinor_dble *s,spinor_dble *r)
 {
-   int bc;
-   int k,ix,t,ofs,vol,isb;
-   int *piup,*pidn;
-   double muo;
-   su3_dble *udb,*ud;
-   pauli_dble *swb,*swd;
-   spin_t *rs,*so,*ro;
-   tm_parms_t tm;
-
    cpsd_int_bnd(0x1,s);
-
-   bc=bc_type();
-   tm=tm_parms();
-   if (tm.eoflg==1)
-      muo=0.0;
-   else
-      muo=mu;
-
-   udb=udfld();
-   swb=swdfld();
-
-#pragma omp parallel private(k,ix,t,vol,ofs,isb,piup,pidn,ud,swd,rs,so,ro)
+   
+   const pauli_dble *sw = swdfld();   
+   const tm_parms_t tm = tm_parms();
+   const double muo = (tm.eoflg==1)? 0.0 : mu ;
+   const int bc = bc_type();
+   const int *piup = iup[VOLUME/2];
+   const int *pidn = idn[VOLUME/2];
+   const su3_dble *ud = udfld() ;
+   spin_t *so = (spin_t*)(s+(VOLUME/2));
+   spin_t *ro = (spin_t*)(r+(VOLUME/2));
+   int i ;
+#pragma omp parallel
    {
-      k=omp_get_thread_num();
-
-      vol=(BNDRY/2)/NTHREAD;
-      ofs=k*vol;
-
-      if (k==(NTHREAD-1))
-         vol=(BNDRY/2)-ofs;
-
-      set_sd2zero(vol,0,r+VOLUME+ofs);
-
-      vol=VOLUME_TRD/2;
-      ofs=k*vol;
-      apply_sw_dble(vol,mu,swb+2*ofs,s+ofs,r+ofs);
-
-      ud=udb+8*ofs;
-      ofs+=VOLUME/2;
-      piup=iup[ofs];
-      pidn=idn[ofs];
-      swd=swb+2*ofs;
-      so=(spin_t*)(s+ofs);
-      ro=(spin_t*)(r+ofs);
-      rs=amalloc(sizeof(*rs),5);
-
-      if (((cpr[0]==0)&&(bc!=3))||((cpr[0]==(NPROC0-1))&&(bc==0)))
-      {
-         for (isb=0;isb<16;isb++)
-         {
-#pragma omp barrier
-            ofs=(VOLUME/2)+k*(VOLUME_TRD/2)+sbofs[isb]/2;
-            vol=sbvol[isb]/2;
-
-            for (ix=ofs;ix<(ofs+vol);ix++)
-            {
-               t=global_time(ix);
-
-               if ((t>0)&&((t<(N0-1))||(bc!=0)))
-               {
-                  doe(-0.5,piup,pidn,ud,s,rs);
-
-                  mul_pauli_dble(muo,swd,(*so).w,(*ro).w);
-                  mul_pauli_dble(-muo,swd+1,(*so).w+1,(*ro).w+1);
-
-                  _vector_add_assign((*ro).s.c1,(*rs).s.c1);
-                  _vector_add_assign((*ro).s.c2,(*rs).s.c2);
-                  _vector_add_assign((*ro).s.c3,(*rs).s.c3);
-                  _vector_add_assign((*ro).s.c4,(*rs).s.c4);
-                  (*rs)=(*so);
-
-                  deo(-0.5,piup,pidn,ud,rs,r);
-               }
-               else
-               {
-                  (*so).s=sd0;
-                  (*ro).s=sd0;
-               }
-
-               piup+=4;
-               pidn+=4;
-               ud+=8;
-               swd+=2;
-               so+=1;
-               ro+=1;
-            }
-         }
-      }
-      else
-      {
-         for (isb=0;isb<16;isb++)
-         {
-#pragma omp barrier
-            ofs=(VOLUME/2)+k*(VOLUME_TRD/2)+sbofs[isb]/2;
-            vol=sbvol[isb]/2;
-
-            for (ix=ofs;ix<(ofs+vol);ix++)
-            {
-               doe(-0.5,piup,pidn,ud,s,rs);
-
-               mul_pauli_dble(muo,swd,(*so).w,(*ro).w);
-               mul_pauli_dble(-muo,swd+1,(*so).w+1,(*ro).w+1);
-
-               _vector_add_assign((*ro).s.c1,(*rs).s.c1);
-               _vector_add_assign((*ro).s.c2,(*rs).s.c2);
-               _vector_add_assign((*ro).s.c3,(*rs).s.c3);
-               _vector_add_assign((*ro).s.c4,(*rs).s.c4);
-               (*rs)=(*so);
-
-               deo(-0.5,piup,pidn,ud,rs,r);
-
-               piup+=4;
-               pidn+=4;
-               ud+=8;
-               swd+=2;
-               so+=1;
-               ro+=1;
-            }
-         }
-      }
-
-      afree(rs);
+     const int k = omp_get_thread_num() ;
+     const int Bstep = BNDRY/(2*NTHREAD) , SwStep = VOLUME/(2*NTHREAD) ;
+     apply_sw_dble( SwStep , mu , sw + 2*k*SwStep , s + k*SwStep , r + k*SwStep ) ;
+     set_sd2zero(Bstep,0,r+k*Bstep+VOLUME) ;
+     
+     if (((cpr[0]==0)&&(bc!=3))||((cpr[0]==(NPROC0-1))&&(bc==0))) {
+#pragma omp for private(i)
+       for( i = 0 ; i < VOLUME/2 ; i++ ) {
+	 const int t = global_time(i+VOLUME/2);
+         if ((t>0)&&((t<(N0-1))||(bc!=0))){
+	   spin_t rs[10] __attribute__((aligned(32))) = { 0 } ;
+	   doe(-0.5,piup+4*i,pidn+4*i,ud+8*i,s,rs);
+	   mul_pauli_dble( muo , sw+VOLUME+2*i   , &so[i].w[0], &ro[i].w[0]);
+	   mul_pauli_dble(-muo , sw+VOLUME+2*i+1 , &so[i].w[1], &ro[i].w[1]);
+	   _vector_add_assign(ro[i].s.c1,rs->s.c1);
+	   _vector_add_assign(ro[i].s.c2,rs->s.c2);
+	   _vector_add_assign(ro[i].s.c3,rs->s.c3);
+	   _vector_add_assign(ro[i].s.c4,rs->s.c4);
+	   *rs = so[i];
+	   deo(-0.5,piup+4*i,pidn+4*i,ud+8*i,rs,r);
+	 } else {
+	   so[i].s = ro[i].s = sd0 ;
+	 }
+       }
+     } else {
+#pragma omp for private(i)
+       for( i = 0 ; i < VOLUME/2 ; i++ ) {
+	 spin_t rs[10] __attribute__((aligned(32))) = { 0 } ;
+	 doe(-0.5,piup+4*i,pidn+4*i,ud+8*i,s,rs);
+	 mul_pauli_dble( muo , sw+VOLUME+2*i   , &so[i].w[0], &ro[i].w[0]);
+	 mul_pauli_dble(-muo , sw+VOLUME+2*i+1 , &so[i].w[1], &ro[i].w[1]);
+	 _vector_add_assign(ro[i].s.c1,rs->s.c1);
+	 _vector_add_assign(ro[i].s.c2,rs->s.c2);
+	 _vector_add_assign(ro[i].s.c3,rs->s.c3);
+	 _vector_add_assign(ro[i].s.c4,rs->s.c4);
+	 *rs = so[i];
+	 deo(-0.5,piup+4*i,pidn+4*i,ud+8*i,rs,r);
+       }
+     }
    }
-
    cpsd_ext_bnd(0x1,r);
 }
-
 
 void Dwee_dble(double mu,spinor_dble *s,spinor_dble *r)
 {
-   int bc;
-   int k,ix,t,ofs,vol;
-   pauli_dble *swb,*swd;
-   spin_t *se,*re;
-
-   bc=bc_type();
-   swb=swdfld();
-
-#pragma omp parallel private(k,ix,t,vol,ofs,swd,se,re)
-   {
-      k=omp_get_thread_num();
-
-      vol=VOLUME_TRD/2;
-      ofs=k*vol;
-      swd=swb+2*ofs;
-      se=(spin_t*)(s+ofs);
-      re=(spin_t*)(r+ofs);
-
-      if (((cpr[0]==0)&&(bc!=3))||((cpr[0]==(NPROC0-1))&&(bc==0)))
-      {
-         for (ix=ofs;ix<(ofs+vol);ix++)
-         {
-            t=global_time(ix);
-
-            if ((t>0)&&((t<(N0-1))||(bc!=0)))
-            {
-               mul_pauli_dble(mu,swd,(*se).w,(*re).w);
-               mul_pauli_dble(-mu,swd+1,(*se).w+1,(*re).w+1);
-            }
-            else
-            {
-               (*se).s=sd0;
-               (*re).s=sd0;
-            }
-
-            swd+=2;
-            se+=1;
-            re+=1;
-         }
+  const int bc = bc_type();
+  const pauli_dble *sw = swdfld();
+  spin_t *se = (spin_t*)(s);
+  spin_t *re = (spin_t*)(r);
+  int i ;
+#pragma omp parallel
+  {
+    if (((cpr[0]==0)&&(bc!=3))||((cpr[0]==(NPROC0-1))&&(bc==0))) {
+#pragma omp for private(i)
+      for( i = 0 ; i < VOLUME/2 ; i++ ) {
+	const int t = global_time(i);
+	if ((t>0)&&((t<(N0-1))||(bc!=0))) {
+	  mul_pauli_dble( mu , sw+2*i   , &se[i].w[0], &re[i].w[0] );
+	  mul_pauli_dble(-mu , sw+2*i+1 , &se[i].w[1], &re[i].w[1] );
+	} else {
+	  se[i].s = re[i].s = sd0 ;
+	}
       }
-      else
-      {
-         for (ix=ofs;ix<(ofs+vol);ix++)
-         {
-            mul_pauli_dble(mu,swd,(*se).w,(*re).w);
-            mul_pauli_dble(-mu,swd+1,(*se).w+1,(*re).w+1);
-
-            swd+=2;
-            se+=1;
-            re+=1;
-         }
+    } else {
+#pragma omp for private(i)
+      for( i = 0 ; i < VOLUME/2 ; i++ ) {
+	mul_pauli_dble( mu , sw+2*i   , &se[i].w[0], &re[i].w[0] );
+	mul_pauli_dble(-mu , sw+2*i+1 , &se[i].w[1], &re[i].w[1] );
       }
-   }
+    }
+  }
 }
-
 
 void Dwoo_dble(double mu,spinor_dble *s,spinor_dble *r)
 {
-   int bc;
-   int k,ix,t,ofs,vol;
-   pauli_dble *swb,*swd;
-   spin_t *so,*ro;
-   tm_parms_t tm;
-
-   bc=bc_type();
-   tm=tm_parms();
-   if (tm.eoflg==1)
-      mu=0.0;
-   swb=swdfld();
-
-#pragma omp parallel private(k,ix,t,vol,ofs,swd,so,ro)
-   {
-      k=omp_get_thread_num();
-
-      vol=VOLUME_TRD/2;
-      ofs=VOLUME/2+k*vol;
-      swd=swb+2*ofs;
-      so=(spin_t*)(s+ofs);
-      ro=(spin_t*)(r+ofs);
-
-      if (((cpr[0]==0)&&(bc!=3))||((cpr[0]==(NPROC0-1))&&(bc==0)))
-      {
-         for (ix=ofs;ix<(ofs+vol);ix++)
-         {
-            t=global_time(ix);
-
-            if ((t>0)&&((t<(N0-1))||(bc!=0)))
-            {
-               mul_pauli_dble(mu,swd,(*so).w,(*ro).w);
-               mul_pauli_dble(-mu,swd+1,(*so).w+1,(*ro).w+1);
-            }
-            else
-            {
-               (*so).s=sd0;
-               (*ro).s=sd0;
-            }
-
-            swd+=2;
-            so+=1;
-            ro+=1;
-         }
+  const int bc = bc_type() ;
+  const pauli_dble *sw = swdfld() + VOLUME ;
+  const tm_parms_t tm = tm_parms();
+  const double muo = (tm.eoflg==1)?0.0:mu ;
+  spin_t *so = (spin_t*)(s+(VOLUME/2));
+  spin_t *ro = (spin_t*)(r+(VOLUME/2));
+  int i ;
+#pragma omp parallel
+  {
+    if (((cpr[0]==0)&&(bc!=3))||((cpr[0]==(NPROC0-1))&&(bc==0))) {
+#pragma omp for private(i)
+      for( i = 0 ; i < VOLUME/2 ; i++ ) {
+	const int t = global_time(i+VOLUME/2);
+	if ((t>0)&&((t<(N0-1))||(bc!=0))) {
+	  mul_pauli_dble( muo , sw + 2*i    , &so[i].w[0] , &ro[i].w[0] );
+	  mul_pauli_dble(-muo , sw + 2*i + 1, &so[i].w[1] , &ro[i].w[1] );
+	} else {
+	  so[i].s = ro[i].s = sd0 ;
+	}
       }
-      else
-      {
-         for (ix=ofs;ix<(ofs+vol);ix++)
-         {
-            mul_pauli_dble(mu,swd,(*so).w,(*ro).w);
-            mul_pauli_dble(-mu,swd+1,(*so).w+1,(*ro).w+1);
-
-            swd+=2;
-            so+=1;
-            ro+=1;
-         }
+    } else {
+      #pragma omp for private(i)
+      for( i = 0 ; i < VOLUME/2 ; i++ ) {
+	mul_pauli_dble( muo , sw + 2*i    , &so[i].w[0] , &ro[i].w[0] );
+	mul_pauli_dble(-muo , sw + 2*i + 1, &so[i].w[1] , &ro[i].w[1] );
       }
-   }
+    }
+  }
 }
-
 
 void Dwoe_dble(spinor_dble *s,spinor_dble *r)
 {
-   int bc;
-   int k,ix,t,ofs,vol,isb;
-   int *piup,*pidn;
-   su3_dble *udb,*ud;
-   spin_t *rs,*ro;
-
-   cpsd_int_bnd(0x1,s);
-
-   bc=bc_type();
-   udb=udfld();
-
-#pragma omp parallel private(k,ix,t,vol,ofs,isb,piup,pidn,ud,rs,ro)
-   {
-      k=omp_get_thread_num();
-
-      ofs=k*VOLUME_TRD/2;
-      ud=udb+8*ofs;
-      ofs+=VOLUME/2;
-      piup=iup[ofs];
-      pidn=idn[ofs];
-      ro=(spin_t*)(r+ofs);
-      rs=amalloc(sizeof(*rs),5);
-
-      if (((cpr[0]==0)&&(bc!=3))||((cpr[0]==(NPROC0-1))&&(bc==0)))
-      {
-         for (isb=0;isb<16;isb++)
-         {
-#pragma omp barrier
-            ofs=(VOLUME/2)+k*(VOLUME_TRD/2)+sbofs[isb]/2;
-            vol=sbvol[isb]/2;
-
-            for (ix=ofs;ix<(ofs+vol);ix++)
-            {
-               t=global_time(ix);
-
-               if ((t>0)&&((t<(N0-1))||(bc!=0)))
-               {
-                  doe(-0.5,piup,pidn,ud,s,rs);
-                  (*ro)=(*rs);
-               }
-               else
-                  (*ro).s=sd0;
-
-               piup+=4;
-               pidn+=4;
-               ud+=8;
-               ro+=1;
-            }
-         }
+  cpsd_int_bnd(0x1,s);
+  const int bc = bc_type() ;
+  const int *piup = iup[VOLUME/2];
+  const int *pidn = idn[VOLUME/2];
+  const su3_dble *u = udfld();
+  spin_t *ro = (spin_t*)(r+(VOLUME/2));
+  int i ;
+#pragma omp parallel
+  {
+    if (((cpr[0]==0)&&(bc!=3))||((cpr[0]==(NPROC0-1))&&(bc==0))){
+#pragma omp for private(i)
+      for( i = 0 ; i < VOLUME/2 ; i++ ) {
+	const int t = global_time(i+VOLUME/2);
+	if ((t>0)&&((t<(N0-1))||(bc!=0))) {
+	  spin_t rs[10] __attribute__((aligned(32))) = { 0 } ;
+	  doe(-0.5,piup+4*i,pidn+4*i,u+8*i,s,rs);
+	  ro[i] = *rs ;
+	} else {
+	  ro[i].s = sd0 ; 
+	}
       }
-      else
-      {
-         for (isb=0;isb<16;isb++)
-         {
-#pragma omp barrier
-            ofs=(VOLUME/2)+k*(VOLUME_TRD/2)+sbofs[isb]/2;
-            vol=sbvol[isb]/2;
-
-            for (ix=ofs;ix<(ofs+vol);ix++)
-            {
-               doe(-0.5,piup,pidn,ud,s,rs);
-               (*ro)=(*rs);
-
-               piup+=4;
-               pidn+=4;
-               ud+=8;
-               ro+=1;
-            }
-         }
+    } else {
+#pragma omp for private(i)
+      for( i = 0 ; i < VOLUME/2 ; i++ ) {
+	spin_t rs[10] __attribute__((aligned(32))) = { 0 } ;
+	doe(-0.5,piup+4*i,pidn+4*i,u+8*i,s,rs);
+	ro[i] = *rs ;
       }
-
-      afree(rs);
-   }
+    }
+  }
 }
-
 
 void Dweo_dble(spinor_dble *s,spinor_dble *r)
 {
-   int bc;
-   int k,ix,t,ofs,vol,isb;
-   int *piup,*pidn;
-   su3_dble *udb,*ud;
-   spin_t *rs,*so;
-
-   bc=bc_type();
-   udb=udfld();
-
-#pragma omp parallel private(k,ix,t,vol,ofs,isb,piup,pidn,ud,rs,so)
-   {
-      k=omp_get_thread_num();
-
-      vol=(BNDRY/2)/NTHREAD;
-      ofs=k*vol;
-
-      if (k==(NTHREAD-1))
-         vol=(BNDRY/2)-ofs;
-
-      set_sd2zero(vol,0,r+VOLUME+ofs);
-
-      vol=VOLUME_TRD/2;
-      ofs=k*vol;
-      ud=udb+8*ofs;
-      ofs+=VOLUME/2;
-      piup=iup[ofs];
-      pidn=idn[ofs];
-      so=(spin_t*)(s+ofs);
-      rs=amalloc(sizeof(*rs),5);
-
-      if (((cpr[0]==0)&&(bc!=3))||((cpr[0]==(NPROC0-1))&&(bc==0)))
-      {
-         for (isb=0;isb<16;isb++)
-         {
-#pragma omp barrier
-            ofs=(VOLUME/2)+k*(VOLUME_TRD/2)+sbofs[isb]/2;
-            vol=sbvol[isb]/2;
-
-            for (ix=ofs;ix<(ofs+vol);ix++)
-            {
-               t=global_time(ix);
-
-               if ((t>0)&&((t<(N0-1))||(bc!=0)))
-               {
-                  (*rs)=(*so);
-                  deo(0.5,piup,pidn,ud,rs,r);
-               }
-               else
-                  (*so).s=sd0;
-
-               piup+=4;
-               pidn+=4;
-               ud+=8;
-               so+=1;
-            }
-         }
-      }
-      else
-      {
-         for (isb=0;isb<16;isb++)
-         {
-#pragma omp barrier
-            ofs=(VOLUME/2)+k*(VOLUME_TRD/2)+sbofs[isb]/2;
-            vol=sbvol[isb]/2;
-
-            for (ix=ofs;ix<(ofs+vol);ix++)
-            {
-               (*rs)=(*so);
-               deo(0.5,piup,pidn,ud,rs,r);
-
-               piup+=4;
-               pidn+=4;
-               ud+=8;
-               so+=1;
-            }
-         }
-      }
-
-      afree(rs);
-   }
-
-   cpsd_ext_bnd(0x1,r);
+  const int bc = bc_type();
+  const int *piup = iup[VOLUME/2];
+  const int *pidn = idn[VOLUME/2];
+  const su3_dble *u = udfld();
+  spin_t *so = (spin_t*)(s+(VOLUME/2));
+  int i ;
+#pragma omp parallel
+  {
+     const int k = omp_get_thread_num() ;
+     const int Bstep = BNDRY/(2*NTHREAD) ;
+     set_sd2zero(Bstep,0,r+k*Bstep+VOLUME) ;
+     if (((cpr[0]==0)&&(bc!=3))||((cpr[0]==(NPROC0-1))&&(bc==0))) {
+#pragma omp for private(i)
+       for( i = 0 ; i < VOLUME/2 ; i++ ) {
+	 const int t = global_time(i+VOLUME/2);
+	 if ((t>0)&&((t<(N0-1))||(bc!=0))) {
+	   spin_t rs[10] __attribute__((aligned(32))) = { 0 } ;
+	   (*rs)=(so[i]);
+	   deo(0.5,piup+4*i,pidn+4*i,u+8*i,rs,r);
+	 } else {
+	   so[i].s = sd0 ;
+	 }
+       }
+     } else {
+#pragma omp for private(i)
+       for( i = 0 ; i < VOLUME/2 ; i++ ) {
+	 spin_t rs[10] __attribute__((aligned(32))) = { 0 } ;
+	 (*rs)=(so[i]);
+	 deo(0.5,piup+4*i,pidn+4*i,u+8*i,rs,r);
+       }
+     }
+  }
+  cpsd_ext_bnd(0x1,r);
 }
-
 
 void Dwhat_dble(double mu,spinor_dble *s,spinor_dble *r)
 {
-   int bc;
-   int k,ix,t,ofs,vol,isb;
-   int *piup,*pidn;
-   su3_dble *udb,*ud;
-   pauli_dble *swb,*swd;
-   spin_t *rs;
-
-   cpsd_int_bnd(0x1,s);
-
-   bc=bc_type();
-   udb=udfld();
-   swb=swdfld();
-
-#pragma omp parallel private(k,ix,t,vol,ofs,isb,piup,pidn,ud,swd,rs)
-   {
-      k=omp_get_thread_num();
-
-      vol=(BNDRY/2)/NTHREAD;
-      ofs=k*vol;
-
-      if (k==(NTHREAD-1))
-         vol=(BNDRY/2)-ofs;
-
-      set_sd2zero(vol,0,r+VOLUME+ofs);
-
-      vol=VOLUME_TRD/2;
-      ofs=k*vol;
-      apply_sw_dble(vol,mu,swb+2*ofs,s+ofs,r+ofs);
-
-      ud=udb+8*ofs;
-      ofs+=VOLUME/2;
-      piup=iup[ofs];
-      pidn=idn[ofs];
-      swd=swb+2*ofs;
-      rs=amalloc(sizeof(*rs),5);
-
-      if (((cpr[0]==0)&&(bc!=3))||((cpr[0]==(NPROC0-1))&&(bc==0)))
-      {
-         for (isb=0;isb<16;isb++)
-         {
-#pragma omp barrier
-            ofs=(VOLUME/2)+k*(VOLUME_TRD/2)+sbofs[isb]/2;
-            vol=sbvol[isb]/2;
-
-            for (ix=ofs;ix<(ofs+vol);ix++)
-            {
-               t=global_time(ix);
-
-               if ((t>0)&&((t<(N0-1))||(bc!=0)))
-               {
-                  doe(-0.5,piup,pidn,ud,s,rs);
-
-                  mul_pauli_dble(0.0,swd,(*rs).w,(*rs).w);
-                  mul_pauli_dble(0.0,swd+1,(*rs).w+1,(*rs).w+1);
-
-                  deo(0.5,piup,pidn,ud,rs,r);
-               }
-
-               piup+=4;
-               pidn+=4;
-               ud+=8;
-               swd+=2;
-            }
-         }
-      }
-      else
-      {
-         for (isb=0;isb<16;isb++)
-         {
-#pragma omp barrier
-            ofs=(VOLUME/2)+k*(VOLUME_TRD/2)+sbofs[isb]/2;
-            vol=sbvol[isb]/2;
-
-            for (ix=ofs;ix<(ofs+vol);ix++)
-            {
-               doe(-0.5,piup,pidn,ud,s,rs);
-
-               mul_pauli_dble(0.0,swd,(*rs).w,(*rs).w);
-               mul_pauli_dble(0.0,swd+1,(*rs).w+1,(*rs).w+1);
-
-               deo(0.5,piup,pidn,ud,rs,r);
-
-               piup+=4;
-               pidn+=4;
-               ud+=8;
-               swd+=2;
-            }
-         }
-      }
-
-      afree(rs);
-   }
-
-   cpsd_ext_bnd(0x1,r);
+  cpsd_int_bnd(0x1,s);
+  const pauli_dble *sw = swdfld();
+  const int bc = bc_type();
+  const int *piup=iup[VOLUME/2];
+  const int *pidn=idn[VOLUME/2];
+  const su3_dble *u = udfld() ;
+  int i ;
+#pragma omp parallel
+  {
+    const int k = omp_get_thread_num() ;
+    const int Bstep = BNDRY/(2*NTHREAD) , SwStep = VOLUME/(2*NTHREAD) ;
+    apply_sw_dble( SwStep , mu , sw + 2*k*SwStep , s + k*SwStep , r + k*SwStep ) ;
+    set_sd2zero(Bstep,0,r+k*Bstep+VOLUME) ;
+    if (((cpr[0]==0)&&(bc!=3))||((cpr[0]==(NPROC0-1))&&(bc==0))) {
+#pragma omp for private(i)
+       for( i = 0 ; i < VOLUME/2 ; i++ ) {
+	 const int t = global_time(i+VOLUME/2) ;
+	 if ((t>0)&&((t<(N0-1))||(bc!=0))) {
+	   spin_t rs[10] __attribute__((aligned(32))) = { 0 } ;
+	   doe(-0.5,piup+4*i,pidn+4*i,u+8*i,s,rs);
+	   mul_pauli_dble(0.0,sw+VOLUME+2*i  ,&rs->w[0],&rs->w[0]);
+	   mul_pauli_dble(0.0,sw+VOLUME+2*i+1,&rs->w[1],&rs->w[1]);
+	   deo(0.5,piup+4*i,pidn+4*i,u+8*i,rs,r);
+	 }
+       } 
+    } else {
+#pragma omp for private(i)
+       for( i = 0 ; i < VOLUME/2 ; i++ ) {
+	 spin_t rs[10] __attribute__((aligned(32))) = { 0 } ;
+	 doe(-0.5,piup+4*i,pidn+4*i,u+8*i,s,rs);
+	 mul_pauli_dble(0.0,sw+VOLUME+2*i  ,&rs->w[0],&rs->w[0]);
+	 mul_pauli_dble(0.0,sw+VOLUME+2*i+1,&rs->w[1],&rs->w[1]);
+	 deo(0.5,piup+4*i,pidn+4*i,u+8*i,rs,r);
+       }
+    }
+  }
+  cpsd_ext_bnd(0x1,r);
 }
-
 
 void Dw_blk_dble(blk_grid_t grid,int n,double mu,int k,int l)
 {
@@ -2246,10 +1965,8 @@ void Dweo_blk_dble(blk_grid_t grid,int n,int k,int l)
          so+=1;
       }
    }
-
    afree(rs);
 }
-
 
 void Dwhat_blk_dble(blk_grid_t grid,int n,double mu,int k,int l)
 {

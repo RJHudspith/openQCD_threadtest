@@ -55,7 +55,7 @@ typedef union
 #if (defined x64)
 #include "sse2.h"
 
-void mul_pauli(float mu,pauli *m,weyl *s,weyl *r)
+void mul_pauli(const float mu,const pauli *m,const weyl *s,weyl *r)
 {
    m+=4;
    _prefetch_pauli(m);
@@ -408,7 +408,7 @@ void mul_pauli(float mu,pauli *m,weyl *s,weyl *r)
 #if (defined AVX)
 #include "avx.h"
 
-void mul_pauli2(float mu,pauli *m,spinor *s,spinor *r)
+void mul_pauli2(const float mu,const pauli *m,const spinor *s,spinor *r)
 {
    m+=4;
    _prefetch_pauli_dble(m);
@@ -936,26 +936,23 @@ void mul_pauli2(float mu,pauli *m,spinor *s,spinor *r)
 
 #else
 
-void mul_pauli2(float mu,pauli *m,spinor *s,spinor *r)
+void mul_pauli2(const float mu,const pauli *m,const spinor *s,spinor *r)
 {
-   spin_t *ps,*pr;
-
-   ps=(spin_t*)(s);
-   pr=(spin_t*)(r);
-
-   mul_pauli(mu,m,(*ps).w,(*pr).w);
-   mul_pauli(-mu,m+1,(*ps).w+1,(*pr).w+1);
+  spin_t *ps = (spin_t*)(s);
+  spin_t *pr=(spin_t*)(r);
+  
+  mul_pauli(mu,m,(*ps).w,(*pr).w);
+  mul_pauli(-mu,m+1,(*ps).w+1,(*pr).w+1);
 }
 
 #endif
 #else
 
-void mul_pauli(float mu,pauli *m,weyl *s,weyl *r)
+void mul_pauli(const float mu,const pauli *m,const weyl *s,weyl *r)
 {
-   float *u;
    weyl rs;
 
-   u=(*m).u;
+   const float *u = m->u ;
 
    rs.c1.c1.re=
       u[ 0]*(*s).c1.c1.re-   mu*(*s).c1.c1.im+
@@ -1057,15 +1054,12 @@ void mul_pauli(float mu,pauli *m,weyl *s,weyl *r)
 }
 
 
-void mul_pauli2(float mu,pauli *m,spinor *s,spinor *r)
+void mul_pauli2(const float mu,const pauli *m,const spinor *s,spinor *r)
 {
-   spin_t *ps,*pr;
-
-   ps=(spin_t*)(s);
-   pr=(spin_t*)(r);
-
-   mul_pauli(mu,m,(*ps).w,(*pr).w);
-   mul_pauli(-mu,m+1,(*ps).w+1,(*pr).w+1);
+  const spin_t *ps=(const spin_t*)(s);
+  spin_t *pr=(spin_t*)(r);
+  mul_pauli(mu,m,ps->w,pr->w);
+  mul_pauli(-mu,m+1,ps->w+1,pr->w+1);
 }
 
 #endif
@@ -1104,12 +1098,9 @@ void assign_pauli(int vol,pauli_dble *md,pauli *m)
 }
 
 
-void apply_sw(int vol,float mu,pauli *m,spinor *s,spinor *r)
+void apply_sw(const int vol,const float mu,const pauli *m,const spinor *s,spinor *r)
 {
-   spinor *sm;
-
-   sm=s+vol;
-
+   const spinor *sm = s+vol;
    for (;s<sm;s++)
    {
       mul_pauli2(mu,m,s,r);

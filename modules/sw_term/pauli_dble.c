@@ -99,7 +99,7 @@ typedef union
 #if (defined AVX)
 #include "avx.h"
 
-void mul_pauli_dble(double mu,pauli_dble *m,weyl_dble *s,weyl_dble *r)
+void mul_pauli_dble(const double mu,const pauli_dble *m,const weyl_dble *s,weyl_dble *r)
 {
    m+=2;
    _prefetch_pauli_dble(m);
@@ -447,7 +447,7 @@ void mul_pauli_dble(double mu,pauli_dble *m,weyl_dble *s,weyl_dble *r)
 
 #else
 
-void mul_pauli_dble(double mu,pauli_dble *m,weyl_dble *s,weyl_dble *r)
+void mul_pauli_dble(const double mu,const pauli_dble *m,const weyl_dble *s,weyl_dble *r)
 {
    m+=2;
    _prefetch_pauli_dble(m);
@@ -1333,12 +1333,11 @@ static void bck_house(pauli_wsp_t *pwsp)
 
 #else
 
-void mul_pauli_dble(double mu,pauli_dble *m,weyl_dble *s,weyl_dble *r)
+void mul_pauli_dble(const double mu,const pauli_dble *m,const weyl_dble *s,weyl_dble *r)
 {
-   double *u;
    weyl_dble rs;
 
-   u=(*m).u;
+   const double *u = m->u ;
 
    rs.c1.c1.re=
       u[ 0]*(*s).c1.c1.re-   mu*(*s).c1.c1.im+
@@ -1837,14 +1836,12 @@ complex_dble det_pauli_dble(double mu,pauli_dble *m,pauli_wsp_t *pwsp)
 }
 
 
-void apply_sw_dble(int vol,double mu,pauli_dble *m,spinor_dble *s,
+void apply_sw_dble(const int vol,const double mu,const pauli_dble *m,const spinor_dble *s,
                    spinor_dble *r)
 {
-   spin_t *ps,*pr,*pm;
-
-   ps=(spin_t*)(s);
-   pr=(spin_t*)(r);
-   pm=ps+vol;
+   const spin_t *ps=(spin_t*)(s);
+   spin_t *pr=(spin_t*)(r);
+   const spin_t *pm=ps+vol;
 
    for (;ps<pm;ps++)
    {
