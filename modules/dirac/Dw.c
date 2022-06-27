@@ -119,6 +119,10 @@ typedef union
 
 static const spinor s0={{{0.0f,0.0f}}};
 
+// checkerboards the 2^4 subblock
+static const int cb_map[16] = { 0, 3, 5, 6, 9, 10, 12, 15,
+				1, 2, 4, 7, 8, 11, 13, 14 } ;
+
 #if (defined AVX)
 #include "avx.h"
 
@@ -147,10 +151,12 @@ static void doe( const float coe,
 		 const spinor *pk,
 		 spin_t *rs)
 {
+   const spinor *sp,*sm;
+
 /******************************** direction 0 *********************************/
 
-   const spinor *sp=pk+piup[0];
-   const spinor *sm=pk+pidn[0];
+   sp=pk+piup[0];
+   sm=pk+pidn[0];
 
    _avx_spinor_pair_load34(*sp,*sm);
 
@@ -232,12 +238,12 @@ static void doe( const float coe,
 }
 
 
-static void deo(const float ceo,
-		const int *piup,
-		const int *pidn,
-		const su3 *u,
-		spin_t *rs,
-		spinor *pl)
+static void deo( const float ceo,
+		 const int *piup,
+		 const int *pidn,
+		 const su3 *u,
+		 spin_t *rs,
+		 spinor *pl)
 {
    spinor *sp,*sm;
 
@@ -374,12 +380,12 @@ __asm__ __volatile__ ("mulps %%xmm15, %%xmm3 \n\t" \
                       "xmm3", "xmm4", "xmm5")
 
 
-static void doe( const float coe,
-		 const int *piup,
-		 const int *pidn,
-		 const su3 *u,
-		 const spinor *pk,
-		 spin_t *rs)
+static void doe(const float coe,
+		const int *piup,
+		const int *pidn,
+		const su3 *u,
+		const spinor *pk,
+		spin_t *rs)
 {
    const spinor *sp,*sm;
 
@@ -545,14 +551,14 @@ static void doe( const float coe,
 }
 
 
-static void deo( const float ceo,
-		 const int *piup,
-		 const int *pidn,
-		 const su3 *u,
-		 spin_t *rs,
-		 spinor *pl)
+static void deo(const float ceo,
+		const int *piup,
+		const int *pidn,
+		const su3 *u,
+		spin_t *rs,
+		spinor *pl)
 {
-   spinor *sp,*sm;
+  spinor *sp,*sm;
 
 /******************************* direction +0 *********************************/
 
@@ -727,15 +733,15 @@ static void deo( const float ceo,
    (r).c3.im*=(c)
 
 
-static void doe( const float coe,
-		 const int *piup,
-		 const int *pidn,
-		 const su3 *u,
-		 const spinor *pk,
-		 spin_t *rs)
+static void doe(const float coe,
+		const int *piup,
+		const int *pidn,
+		const su3 *u,
+		const spinor *pk,
+		spin_t *rs)
 {
   const spinor *sp,*sm;
-  su3_vector psi,chi;
+  register su3_vector psi,chi;
 
 /******************************* direction +0 *********************************/
 
@@ -869,7 +875,7 @@ static void deo( const float ceo,
 		 spinor *pl)
 {
    spinor *sp,*sm;
-   su3_vector psi,chi;
+   register su3_vector psi,chi;
 
    _vector_mul_assign((*rs).s.c1,ceo);
    _vector_mul_assign((*rs).s.c2,ceo);
@@ -998,119 +1004,123 @@ static void deo( const float ceo,
 
 #endif
 
-void Dw(float mu,spinor *s,spinor *r)
+void Dw(const float mu,spinor *s,spinor *r)
 {
-  cps_int_bnd(0x1,s);
-  
-  const pauli *sw = swfld();
-  const tm_parms_t tm = tm_parms();
-  const float muo = (tm.eoflg==1)?0.0f:mu ;
-  const int bc = bc_type();
-  const int *piup = iup[VOLUME/2];
-  const int *pidn = idn[VOLUME/2];
-  const su3 *u = ufld();
-  spin_t *so = (spin_t*)(s+(VOLUME/2));
-  spin_t *ro = (spin_t*)(r+(VOLUME/2));
-  int i ;
-#pragma omp parallel
-  {
-    const int k = omp_get_thread_num() ;
-    const int Bstep = BNDRY/(2*NTHREAD) , SwStep = VOLUME/(2*NTHREAD) ;
-    apply_sw( SwStep , mu , sw + 2*k*SwStep , s + k*SwStep , r + k*SwStep ) ;
-    set_s2zero(Bstep,0,r+k*Bstep+VOLUME) ;
-    
-    if (((cpr[0]==0)&&(bc!=3))||((cpr[0]==(NPROC0-1))&&(bc==0))) {
-#pragma omp for private(i)
-      for( i = 0 ; i < VOLUME/2 ; i++ ) {
-	const int t = global_time(i+VOLUME/2);
-	if ((t>0)&&((t<(N0-1))||(bc!=0))) {
-	  spin_t rs[5] __attribute__((aligned(32))) = { 0 } ;
-	  doe(-0.5f,piup+4*i,pidn+4*i,u+8*i,s,rs);
-	  mul_pauli2( muo , sw+VOLUME+2*i , &so[i].s , &ro[i].s);
-	  _vector_add_assign(ro[i].s.c1,rs->s.c1);
-	  _vector_add_assign(ro[i].s.c2,rs->s.c2);
-	  _vector_add_assign(ro[i].s.c3,rs->s.c3);
-	  _vector_add_assign(ro[i].s.c4,rs->s.c4);
-	  *rs = so[i];
-	  deo(-0.5f,piup+4*i,pidn+4*i,u+8*i,rs,r);
-	} else {
-	  so[i].s = ro[i].s = s0 ;
-	}
-      }
-    } else {
-#pragma omp for private(i)
-      for( i = 0 ; i < VOLUME/2 ; i++ ) {
-	spin_t rs[5] __attribute__((aligned(32))) = { 0 } ;
-	doe(-0.5f,piup+4*i,pidn+4*i,u+8*i,s,rs);
-	mul_pauli2( muo , sw+VOLUME+2*i , &so[i].s , &ro[i].s);
-	_vector_add_assign(ro[i].s.c1,rs->s.c1);
-	_vector_add_assign(ro[i].s.c2,rs->s.c2);
-	_vector_add_assign(ro[i].s.c3,rs->s.c3);
-	_vector_add_assign(ro[i].s.c4,rs->s.c4);
-	*rs = so[i];
-	deo(-0.5f,piup+4*i,pidn+4*i,u+8*i,rs,r);
-      }
-    }
-  }
-  cps_ext_bnd(0x1,r);
-}
-
-void Dwee(float mu,spinor *s,spinor *r)
-{
-   const int bc = bc_type() ;
-   const pauli *sw = swfld() ;
-   spin_t *se = (spin_t*)s ;
-   spin_t *re = (spin_t*)r ;
-   int i ;
+   cps_int_bnd(0x1,s);
+   const int bc = bc_type();
+   const tm_parms_t tm = tm_parms();
+   const float muo = (tm.eoflg==1)?0.0f:mu ;
+   const su3 *ub = ufld();
+   const pauli *swb = swfld();
 #pragma omp parallel
    {
+     const int k=omp_get_thread_num();
+     const int Bstep = BNDRY/(2*NTHREAD) , SwStep = VOLUME/(2*NTHREAD) ;
+     apply_sw( SwStep , mu , swb + 2*k*SwStep , s + k*SwStep , r + k*SwStep ) ;
+     set_s2zero(Bstep,0,r+k*Bstep+VOLUME) ;
+
+     const int ofs=(VOLUME/2)+k*(VOLUME_TRD/2) ;
+     const int *piup = iup[ofs] , *pidn = idn[ofs] ;
+     const pauli *sw = swb + 2*(ofs) ;
+     const su3 *u = ub + 8*k*(VOLUME_TRD/2) ;
+     spin_t *so = (spin_t*)(s+ofs) , *ro = (spin_t*)(r+ofs) ;
+       
      if (((cpr[0]==0)&&(bc!=3))||((cpr[0]==(NPROC0-1))&&(bc==0))) {
-       #pragma omp for private(i)
-       for( i = 0 ; i < VOLUME/2 ; i++ ) {
-	 const int t = global_time(i+VOLUME/2);
-	 if ((t>0)&&((t<(N0-1))||(bc!=0))) {
-	   mul_pauli2(mu,sw+2*i,&se[i].s,&re[i].s);
-	 } else {
-	   se[i].s = re[i].s = s0 ;
+       for( int isb=0;isb<16;isb++) {
+	 // only need one barrier where we switch cbs
+	 if( isb == 8 ) {
+            #pragma omp barrier
+	 }
+	 const int iscb = cb_map[isb] ;
+	 for (int i=0;i<sbvol[iscb]/2;i++) {
+	   const int ix = i+sbofs[iscb]/2;
+	   const int t = global_time(ix + ofs) ;
+	   if ((t>0)&&((t<(N0-1))||(bc!=0))) {
+	     spin_t rs[5] __attribute__((aligned(32))) = { 0 } ;
+	     doe(-0.5f,piup+4*ix,pidn+4*ix,u+8*ix,s,rs);
+	     mul_pauli2(muo,sw+2*ix,&so[ix].s,&ro[ix].s);
+	     _vector_add_assign(ro[ix].s.c1,rs->s.c1);
+	     _vector_add_assign(ro[ix].s.c2,rs->s.c2);
+	     _vector_add_assign(ro[ix].s.c3,rs->s.c3);
+	     _vector_add_assign(ro[ix].s.c4,rs->s.c4);
+	     (*rs)=so[ix];
+	     deo(-0.5f,piup+4*ix,pidn+4*ix,u+8*ix,rs,r);
+	   } else {
+	     so[ix].s = ro[ix].s =s0;
+	   }
 	 }
        }
      } else {
-       #pragma omp for private(i)
-       for( i = 0 ; i < VOLUME/2 ; i++ ) {
-	 mul_pauli2(mu,sw+2*i,&se[i].s,&re[i].s);
+       for( int isb=0;isb<16;isb++) {
+	 // only need one barrier where we switch cbs
+	 if( isb == 8 ) {
+            #pragma omp barrier
+	 }
+	 const int iscb = cb_map[isb] ;
+	 for (int i=0;i<sbvol[iscb]/2;i++) {
+	   const int ix = i+sbofs[iscb]/2;
+	   spin_t rs[5] __attribute__((aligned(32))) = { 0 } ;
+	   doe(-0.5f,piup+4*ix,pidn+4*ix,u+8*ix,s,rs);
+	   mul_pauli2(muo,sw+2*ix,&so[ix].s,&ro[ix].s);
+	   _vector_add_assign(ro[ix].s.c1,rs->s.c1);
+	   _vector_add_assign(ro[ix].s.c2,rs->s.c2);
+	   _vector_add_assign(ro[ix].s.c3,rs->s.c3);
+	   _vector_add_assign(ro[ix].s.c4,rs->s.c4);
+	   (*rs)=so[ix];
+	   deo(-0.5f,piup+4*ix,pidn+4*ix,u+8*ix,rs,r);
+	 }
        }
+     }
+   }
+   cps_ext_bnd(0x1,r);
+}
+
+void Dwee(const float mu,spinor *s,spinor *r)
+{
+   const int bc = bc_type() ;
+   const pauli *sw = swfld() ;
+   spin_t *se = (spin_t*)s , *re = (spin_t*)r ;
+   int i ;
+   if (((cpr[0]==0)&&(bc!=3))||((cpr[0]==(NPROC0-1))&&(bc==0))) {
+#pragma omp parallel for private(i)
+     for( i = 0 ; i < VOLUME/2 ; i++ ) {
+       const int t = global_time(i+VOLUME/2);
+       if ((t>0)&&((t<(N0-1))||(bc!=0))) {
+	 mul_pauli2(mu,sw+2*i,&se[i].s,&re[i].s);
+       } else {
+	 se[i].s = re[i].s = s0 ;
+       }
+     }
+   } else {
+#pragma omp parallel for private(i)
+     for( i = 0 ; i < VOLUME/2 ; i++ ) {
+       mul_pauli2(mu,sw+2*i,&se[i].s,&re[i].s);
      }
    }
 }
 
-void Dwoo(float mu,spinor *s,spinor *r)
+void Dwoo(const float mu,spinor *s,spinor *r)
 {
    const int bc=bc_type();
    const pauli *sw = swfld()+VOLUME;
    const tm_parms_t tm = tm_parms();
-   if (tm.eoflg==1) {
-     mu=0.0f;
-   }
-   spin_t *so = (spin_t*)(s+(VOLUME/2));
-   spin_t *ro = (spin_t*)(r+(VOLUME/2));
+   const float muo = (tm.eoflg==1)?0.0f:mu ;
+   spin_t *so = (spin_t*)(s+(VOLUME/2)) , *ro = (spin_t*)(r+(VOLUME/2));
    int i ;
-#pragma omp parallel
-   {
-     if (((cpr[0]==0)&&(bc!=3))||((cpr[0]==(NPROC0-1))&&(bc==0))) {
-#pragma omp for private(i)
-       for( i = 0 ; i < VOLUME/2 ; i++ ) {
-         const int t = global_time(i+VOLUME/2);
-         if ((t>0)&&((t<(N0-1))||(bc!=0))) {
-	   mul_pauli2(mu,sw+2*i,&so[i].s,&ro[i].s);
-	 } else {
-	   so[i].s = ro[i].s = s0 ;
-         }
+   if (((cpr[0]==0)&&(bc!=3))||((cpr[0]==(NPROC0-1))&&(bc==0))) {
+#pragma omp parallel for private(i)
+     for( i = 0 ; i < VOLUME/2 ; i++ ) {
+       const int t = global_time(i+VOLUME/2);
+       if ((t>0)&&((t<(N0-1))||(bc!=0))) {
+	 mul_pauli2(muo,sw+2*i,&so[i].s,&ro[i].s);
+       } else {
+	 so[i].s = ro[i].s = s0 ;
        }
-     } else {
-#pragma omp for private(i)
-       for( i = 0 ; i < VOLUME/2 ; i++ ) {
-	 mul_pauli2(mu,sw+2*i,&so[i].s,&ro[i].s);
-       }
+     }
+   } else {
+#pragma omp parallel for private(i)
+     for( i = 0 ; i < VOLUME/2 ; i++ ) {
+       mul_pauli2(muo,sw+2*i,&so[i].s,&ro[i].s);
      }
    }
 }
@@ -1119,30 +1129,48 @@ void Dwoe(spinor *s,spinor *r)
 {
    cps_int_bnd(0x1,s);
    const int bc = bc_type();
-   const int *piup = iup[VOLUME/2] ;
-   const int *pidn = idn[VOLUME/2] ;
-   const su3 *u = ufld() ;
-   spin_t *ro = (spin_t*)(r+(VOLUME/2));
-   int i ;
+   const su3 *ub = ufld();
 #pragma omp parallel
    {
+     const int k=omp_get_thread_num();
+     
+     const int ofs = (VOLUME/2)+k*(VOLUME_TRD/2) ;
+     const int *piup = iup[ofs] , *pidn = idn[ofs] ;
+     const su3 *u = ub + 8*k*(VOLUME_TRD/2) ;
+     spin_t *ro = (spin_t*)(r+ofs) ;
+       
      if (((cpr[0]==0)&&(bc!=3))||((cpr[0]==(NPROC0-1))&&(bc==0))) {
-       #pragma omp for private(i)
-       for( i = 0 ; i < VOLUME/2 ; i++ ) {
-         const int t = global_time(i+VOLUME/2);
-         if ((t>0)&&((t<(N0-1))||(bc!=0))) {
-	   spin_t rs[5] __attribute__((aligned(32))) = { 0 } ;
-	   doe( -0.5f , piup+4*i , pidn+4*i , u+8*i , s , rs ) ;
-	   ro[i] = *rs ;
-         } else {
-	   ro[i].s = s0;
+       for( int isb=0;isb<16;isb++) {
+	 // only need one barrier where we switch cbs
+	 if( isb == 8 ) {
+            #pragma omp barrier
 	 }
-      }
-   } else {
-#pragma omp for private(i)
-       for( i = 0 ; i < VOLUME/2 ; i++ ) {
-	 spin_t rs[5] __attribute__((aligned(32))) = { 0 } ;
-	 doe( -0.5f , piup+4*i , pidn+4*i , u+8*i , s , rs ) ;
+	 const int iscb = cb_map[isb] ;
+	 for (int i=0;i<sbvol[iscb]/2;i++) {
+	   const int ix = i+sbofs[iscb]/2;
+	   const int t = global_time(ix + ofs) ;
+	   if ((t>0)&&((t<(N0-1))||(bc!=0))) {
+	     spin_t rs[5] __attribute__((aligned(32))) = { 0 } ;
+	     doe(-0.5f,piup+4*ix,pidn+4*ix,u+8*ix,s,rs);
+	     ro[ix] = *rs ;
+	   } else {
+	     ro[ix].s =s0;
+	   }
+	 }
+       }
+     } else {
+       for( int isb=0;isb<16;isb++) {
+	 // only need one barrier where we switch cbs
+	 if( isb == 8 ) {
+            #pragma omp barrier
+	 }
+	 const int iscb = cb_map[isb] ;
+	 for (int i=0;i<sbvol[iscb]/2;i++) {
+	   const int ix = i+sbofs[iscb]/2;
+	   spin_t rs[5] __attribute__((aligned(32))) = { 0 } ;
+	   doe(-0.5f,piup+4*ix,pidn+4*ix,u+8*ix,s,rs);
+	   ro[ix] = *rs ;	   
+	 }
        }
      }
    }
@@ -1150,83 +1178,113 @@ void Dwoe(spinor *s,spinor *r)
 
 void Dweo(spinor *s,spinor *r)
 {
-   const int bc = bc_type() ;
-   const int *piup=iup[VOLUME/2];
-   const int *pidn=idn[VOLUME/2];
-   const su3 *u = ufld() ;
-   spin_t *so = (spin_t*)(s+(VOLUME/2));
-   int i ;
+   const int bc = bc_type();
+   const su3 *ub = ufld();
 #pragma omp parallel
-  {
-    const int k = omp_get_thread_num() ;
-    const int Bstep = BNDRY/(2*NTHREAD) ;
-    set_s2zero(Bstep,0,r+k*Bstep+VOLUME) ;
-    
-    if (((cpr[0]==0)&&(bc!=3))||((cpr[0]==(NPROC0-1))&&(bc==0))){
-#pragma omp for private(i)
-       for( i = 0 ; i < VOLUME/2 ; i++ ) {
-         const int t = global_time(i+VOLUME/2);
-         if ((t>0)&&((t<(N0-1))||(bc!=0))) {
-	   spin_t rs[5] __attribute__((aligned(32))) = { 0 } ;
-           *rs = so[i] ;
-	   deo(0.5f,piup+4*i,pidn+4*i,u+8*i,rs,r);
-         } else {
-	   so[i].s = s0;
+   {
+     const int k = omp_get_thread_num();
+     const int Bstep = BNDRY/(2*NTHREAD) ;
+     set_s2zero(Bstep,0,r+k*Bstep+VOLUME) ;
+
+     const int ofs=(VOLUME/2)+k*(VOLUME_TRD/2) ;
+     const int *piup = iup[ofs] , *pidn = idn[ofs] ;
+     const su3 *u = ub + 8*k*(VOLUME_TRD/2) ;
+     spin_t *so = (spin_t*)(s+ofs) ;
+       
+     if (((cpr[0]==0)&&(bc!=3))||((cpr[0]==(NPROC0-1))&&(bc==0))) {
+       for( int isb=0;isb<16;isb++) {
+	 // only need one barrier where we switch cbs
+	 if( isb == 8 ) {
+            #pragma omp barrier
 	 }
-      }
-    } else {
-#pragma omp for private(i)
-      for( i = 0 ; i < VOLUME/2 ; i++ ) {
-	spin_t rs[5] __attribute__((aligned(32))) = { 0 } ;
-	*rs = so[i] ;
-	deo(0.5f,piup+4*i,pidn+4*i,u+8*i,rs,r);
-      }
-    }
-  }
-  cps_ext_bnd(0x1,r);
+	 const int iscb = cb_map[isb] ;
+	 for (int i=0;i<sbvol[iscb]/2;i++) {
+	   const int ix = i+sbofs[iscb]/2;
+	   const int t = global_time(ix + ofs) ;
+	   if ((t>0)&&((t<(N0-1))||(bc!=0))) {
+	     spin_t rs[5] __attribute__((aligned(32))) = { 0 } ;
+	     (*rs)=so[ix];
+	     deo(0.5f,piup+4*ix,pidn+4*ix,u+8*ix,rs,r);
+	   } else {
+	     so[ix].s = s0 ;
+	   }
+	 }
+       }
+     } else {
+       for( int isb=0;isb<16;isb++) {
+	 // only need one barrier where we switch cbs
+	 if( isb == 8 ) {
+            #pragma omp barrier
+	 }
+	 const int iscb = cb_map[isb] ;
+	 for (int i=0;i<sbvol[iscb]/2;i++) {
+	   const int ix = i+sbofs[iscb]/2;
+	   spin_t rs[5] __attribute__((aligned(32))) = { 0 } ;
+	   (*rs)=so[ix];
+	   deo(0.5f,piup+4*ix,pidn+4*ix,u+8*ix,rs,r);
+	 }
+       }
+     }
+   }
+   cps_ext_bnd(0x1,r);
 }
 
-void Dwhat(float mu,spinor *s,spinor *r)
+void Dwhat(const float mu,spinor *s,spinor *r)
 {
-  cps_int_bnd(0x1,s);
-  
-  const pauli *sw = swfld() ;
-  const int bc = bc_type() ;
-  const int *piup = iup[VOLUME/2];
-  const int *pidn = idn[VOLUME/2];
-  const su3 *u = ufld() ;
-  int i ;
+   cps_int_bnd(0x1,s);
+   const int bc = bc_type();
+   const su3 *ub = ufld();
+   const pauli *swb = swfld();
 #pragma omp parallel
-  {
-    const int k = omp_get_thread_num() ;
-    const int Bstep = BNDRY/(2*NTHREAD) , SwStep = VOLUME/(2*NTHREAD) ;
-    apply_sw( SwStep , mu , sw + 2*k*SwStep , s + k*SwStep , r + k*SwStep ) ;
-    set_s2zero(Bstep,0,r+k*Bstep+VOLUME) ;
-    
-    if (((cpr[0]==0)&&(bc!=3))||((cpr[0]==(NPROC0-1))&&(bc==0))) {
-#pragma omp for private(i)
-      for( i = 0 ; i < VOLUME/2 ; i++ ) {
-	const int t = global_time(i+VOLUME/2) ;
-	if ((t>0)&&((t<(N0-1))||(bc!=0))) {
-	  spin_t rs[5] __attribute__((aligned(32))) = { 0 } ;
-	  doe(-0.5f,piup+4*i,pidn+4*i,u+8*i,s,rs);
-	  mul_pauli2(0.0f,sw+VOLUME+2*i,&(rs->s),&(rs->s));
-	  deo(0.5f,piup+4*i,pidn+4*i,u+8*i,rs,r);
-	}
-      }
-    } else {
-#pragma omp for private(i)
-      for( i = 0 ; i < VOLUME/2 ; i++ ) {
-	spin_t rs[5] __attribute__((aligned(32))) = { 0 } ;
-	doe(-0.5f,piup+4*i,pidn+4*i,u+8*i,s,rs);
-	mul_pauli2(0.0f,sw+VOLUME+2*i,&(rs->s),&(rs->s));
-	deo(0.5f,piup+4*i,pidn+4*i,u+8*i,rs,r);
-      }
-    }
-  }  
-  cps_ext_bnd(0x1,r);
-}
+   {
+     const int k=omp_get_thread_num();
+     const int Bstep = BNDRY/(2*NTHREAD) , SwStep = VOLUME/(2*NTHREAD) ;
+     apply_sw( SwStep , mu , swb + 2*k*SwStep , s + k*SwStep , r + k*SwStep ) ;
+     set_s2zero(Bstep,0,r+k*Bstep+VOLUME) ;
 
+     const int ofs=(VOLUME/2)+k*(VOLUME_TRD/2) ;
+     const int *piup = iup[ofs] ;
+     const int *pidn = idn[ofs] ;
+     const pauli *sw = swb + 2*(ofs) ;
+     const su3 *u = ub + 8*k*(VOLUME_TRD/2) ;
+       
+     if (((cpr[0]==0)&&(bc!=3))||((cpr[0]==(NPROC0-1))&&(bc==0))) {
+       for( int isb=0;isb<16;isb++) {
+	 // only need one barrier where we switch cbs
+	 if( isb == 8 ) {
+            #pragma omp barrier
+	 }
+	 const int iscb = cb_map[isb] ;
+	 for (int i=0;i<sbvol[iscb]/2;i++) {
+	   const int ix = i+sbofs[iscb]/2;
+	   const int t = global_time(ix + ofs) ;
+	   if ((t>0)&&((t<(N0-1))||(bc!=0))) {
+	     spin_t rs[5] __attribute__((aligned(32))) = { 0 } ;
+	     doe(-0.5f,piup+4*ix,pidn+4*ix,u+8*ix,s,rs);
+	     mul_pauli2(0.0f,sw+2*ix,&rs->s,&rs->s);
+	     deo(0.5f,piup+4*ix,pidn+4*ix,u+8*ix,rs,r);
+	   }
+	 }
+       }
+     } else {
+       for( int isb=0;isb<16;isb++) {
+	 // only need one barrier where we switch cbs
+	 if( isb == 8 ) {
+            #pragma omp barrier
+	 }
+	 const int iscb = cb_map[isb] ;
+	 for (int i=0;i<sbvol[iscb]/2;i++) {
+	   const int ix = i+sbofs[iscb]/2;
+	   spin_t rs[5] __attribute__((aligned(32))) = { 0 } ;
+	   doe(-0.5f,piup+4*ix,pidn+4*ix,u+8*ix,s,rs);
+	   mul_pauli2(0.0f,sw+2*ix,&rs->s,&rs->s);
+	   deo(0.5f,piup+4*ix,pidn+4*ix,u+8*ix,rs,r);
+	 }
+       }
+     }
+   }
+   cps_ext_bnd(0x1,r);
+}
 
 void Dw_blk(blk_grid_t grid,int n,float mu,int k,int l)
 {
