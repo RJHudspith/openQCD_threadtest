@@ -187,10 +187,23 @@ void mpi_init(int argc,char **argv)
 {
    int provided;
 
+#if (defined MPI_SERIALIZED)
+   fprintf( stdout , "MPI_THREAD_SERIALIZED being used\n" ) ;
+   MPI_Init_thread(&argc,&argv,MPI_THREAD_SERIALIZED,&provided);
+   error_root(provided<MPI_THREAD_SERIALIZED,1,"mpi_init_thread [utils.c]",
+              "Thread-safety level MPI_THREAD_SERIALIZED is not supported");
+#elif (defined MPI_MULTIPLE)
+   fprintf( stdout , "MPI_THREAD_MULTIPLE being used\n" ) ;
+   MPI_Init_thread(&argc,&argv,MPI_THREAD_MULTIPLE,&provided);
+   error_root(provided<MPI_THREAD_MULTIPLE,1,"mpi_init_thread [utils.c]",
+              "Thread-safety level MPI_THREAD_MULTIPLE is not supported");
+#else
+   fprintf( stdout , "MPI_THREAD_FUNNELED being used\n" ) ;
    MPI_Init_thread(&argc,&argv,MPI_THREAD_FUNNELED,&provided);
-
    error_root(provided<MPI_THREAD_FUNNELED,1,"mpi_init_thread [utils.c]",
               "Thread-safety level MPI_THREAD_FUNNELED is not supported");
+#endif
+
 
    omp_set_num_threads(NTHREAD);
    omp_set_dynamic(0);

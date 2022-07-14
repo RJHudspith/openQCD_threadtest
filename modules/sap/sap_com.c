@@ -64,7 +64,6 @@ static const weyl w0={{{0.0f}}};
 static block_t *b0;
 static MPI_Request snd_req[2][8],rcv_req[2][8];
 
-
 static void set_nbf(void)
 {
    int ifc,ibu,ibd;
@@ -461,8 +460,7 @@ wait_buf( const int ic ,
 
 // version intended to be called in a threaded parallel region
 void
-sap_com_th( const int ic ,
-	    spinor *r )
+sap_com_th( const int ic , spinor *r )
 {
   if( init==0 ) {
     error_root(1,1,"sap_com [sap_com.c]",
@@ -470,21 +468,55 @@ sap_com_th( const int ic ,
   }
   
   const int k = omp_get_thread_num();
-  
-  if( k==0 ) {
+
+  // send with any thread
+#if (defined MPI_MULTIPLE)||(defined MPI_SERIALIZED)
+  #pragma omp single
+  {
     send_buf(ic,0);
   }
+#else
+  #pragma omp master
+  {
+    send_buf(ic,0);
+  }
+#endif
   
   for( int ifc=0 ; ifc < 8 ; ifc++ ) {
-    if( k==0 ) {
+    // has an implicit barrier so is fine to communicate
+    // on any of the local threads, whichever is first although not when
+    // funneled is used as that expects only the master
+#if (defined MPI_MULTIPLE)||(defined MPI_SERIALIZED)
+    #pragma omp single
+    {
       wait_buf( ic , ifc ) ;
     }
-    
-#pragma omp barrier
-    if( (k==0) && (ifc<7) ) {
-      send_buf( ic , ifc+1 );
+#else
+    #pragma omp master
+    {
+      wait_buf( ic , ifc ) ;
     }
-    
+    #pragma omp barrier
+#endif
+
+    // hmmm can't guarantee serialized comms without a barrier here....
+#if (defined MPI_MULTIPLE)||(defined MPI_SERIALIZED)
+    #pragma omp single
+    {
+      if( ifc < 7 ) {
+	send_buf( ic , ifc+1 );
+      }
+    }
+#else
+    #pragma omp master
+    {
+      if( ifc < 7 ) {
+	send_buf( ic , ifc+1 );
+      }
+    }
+#endif
+
+    // why use the non-master threads? above could be single nowait
     if( (NTHREAD==1) || (k>0) ) {
       const int io  = (ifc^nmu[ifc])^0x1;
       const int ofs = ofs_loc[k][ic][ifc][0];
@@ -495,8 +527,7 @@ sap_com_th( const int ic ,
 }
 
 void
-sap_com( const int ic ,
-	 spinor *r )
+sap_com( const int ic , spinor *r )
 {
 #pragma omp parallel
    {

@@ -15,7 +15,7 @@
 #ifndef GLOBAL_H
 #define GLOBAL_H
 
-#define NPROC0 1
+#define NPROC0 2
 #define NPROC1 1
 #define NPROC2 1
 #define NPROC3 1
@@ -25,7 +25,7 @@
 #define NPROC2_BLK 1
 #define NPROC3_BLK 1
 
-#define L0 32
+#define L0 16
 #define L1 8
 #define L2 8
 #define L3 8

@@ -114,7 +114,7 @@ LIBPATH = $(MPI_HOME)/lib
 
 CFLAGS = -std=c99 -pedantic -fstrict-aliasing -fopenmp -Wall \
          -Wno-long-long -Wno-format-overflow -Wstrict-prototypes -Werror \
-         -O2 -mfpmath=sse -mno-avx -DAVX -DFMA3 -DPM
+         -O2 -mfpmath=sse -mno-avx -DSSE2 -Dx64
 
 LFLAGS = -fopenmp
 
@@ -144,7 +144,7 @@ PGMS= $(MAIN) $(MODULES)
 # rule to make dependencies
 ## LOL is this the same typo that was in hirep .... hahahahahaha
 $(addsuffix .d,$(PGMS)): %.d: %.c Makefile
-	@ $(CC) -ansi $< -MM $(addprefix -I,$(INCPATH)) -o $@
+	@ $(CC) $< -MM $(addprefix -I,$(INCPATH)) -o $@
 
 
 # rule to compile source programs
