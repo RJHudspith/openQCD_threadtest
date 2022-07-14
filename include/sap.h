@@ -25,7 +25,8 @@ extern void blk_eo_mres(int n,float mu,int nmr);
 #if ((defined SAP_COM_C)||(defined BLK_GRID_C ))
 extern void alloc_sap_bufs(void);
 #endif
-extern void sap_com(int ic,spinor *r);
+extern void sap_com_th(const int ic,spinor *r);
+extern void sap_com(const int ic,spinor *r);
 
 /* SAP */
 extern void sap(float mu,int isolv,int nmr,spinor *psi,spinor *eta);

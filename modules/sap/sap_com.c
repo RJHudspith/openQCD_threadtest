@@ -409,93 +409,98 @@ void alloc_sap_bufs(void)
 }
 
 
-static void send_buf(int ic,int ifc)
+static void
+send_buf( const int ic ,
+	  const int ifc )
 {
-   int io;
-
-   io=ifc^nmu[ifc];
-
-   if (sflg[io])
-   {
-      if (np==0)
-      {
-         if (nsbf[ic][io])
-            MPI_Start(&snd_req[ic][io]);
-         if (nsbf[ic][io^0x1])
-            MPI_Start(&rcv_req[ic][io^0x1]);
+  const int io=ifc^nmu[ifc];
+  if (sflg[io]) {
+    if (np==0) {
+      if (nsbf[ic][io]) {
+	MPI_Start(&snd_req[ic][io]);
       }
-      else
-      {
-         if (nsbf[ic][io^0x1])
-            MPI_Start(&rcv_req[ic][io^0x1]);
-         if (nsbf[ic][io])
-            MPI_Start(&snd_req[ic][io]);
+      if (nsbf[ic][io^0x1]) {
+	MPI_Start(&rcv_req[ic][io^0x1]);
       }
-   }
+    } else {
+      if (nsbf[ic][io^0x1]) {
+	MPI_Start(&rcv_req[ic][io^0x1]);
+      }
+      if (nsbf[ic][io]) {
+	MPI_Start(&snd_req[ic][io]);
+      }
+    }
+  }
 }
 
 
-static void wait_buf(int ic,int ifc)
+static void
+wait_buf( const int ic ,
+	  const int ifc )
 {
-   int io;
-   MPI_Status stat;
-
-   io=ifc^nmu[ifc];
-
-   if (sflg[io])
-   {
-      if (np==0)
-      {
-         if (nsbf[ic][io])
-            MPI_Wait(&snd_req[ic][io],&stat);
-         if (nsbf[ic][io^0x1])
-            MPI_Wait(&rcv_req[ic][io^0x1],&stat);
+  MPI_Status stat;
+  const int io=ifc^nmu[ifc];
+  if (sflg[io]) {
+    if (np==0) {
+      if (nsbf[ic][io]) {
+	MPI_Wait(&snd_req[ic][io],&stat);
       }
-      else
-      {
-         if (nsbf[ic][io^0x1])
-            MPI_Wait(&rcv_req[ic][io^0x1],&stat);
-         if (nsbf[ic][io])
-            MPI_Wait(&snd_req[ic][io],&stat);
+      if (nsbf[ic][io^0x1]) {
+	MPI_Wait(&rcv_req[ic][io^0x1],&stat);
       }
-   }
+    } else {
+      if (nsbf[ic][io^0x1]) {
+	MPI_Wait(&rcv_req[ic][io^0x1],&stat);
+      }
+      if (nsbf[ic][io]) {
+	MPI_Wait(&snd_req[ic][io],&stat);
+      }
+    }
+  }
 }
 
-
-void sap_com(int ic,spinor *r)
+// version intended to be called in a threaded parallel region
+void
+sap_com_th( const int ic ,
+	    spinor *r )
 {
-   int k,ifc,io,ofs,vol;
-
-   if (init==0)
-   {
-      error_root(1,1,"sap_com [sap_com.c]",
-                 "Communication buffers are not allocated");
-      return;
-   }
-
-#pragma omp parallel private(k,ifc,io,ofs,vol)
-   {
-      k=omp_get_thread_num();
-
-      if (k==0)
-         send_buf(ic,0);
-
-      for (ifc=0;ifc<8;ifc++)
-      {
-         if (k==0)
-            wait_buf(ic,ifc);
-
+  if( init==0 ) {
+    error_root(1,1,"sap_com [sap_com.c]",
+	       "Communication buffers are not allocated");
+  }
+  
+  const int k = omp_get_thread_num();
+  
+  if( k==0 ) {
+    send_buf(ic,0);
+  }
+  
+  for( int ifc=0 ; ifc < 8 ; ifc++ ) {
+    if( k==0 ) {
+      wait_buf( ic , ifc ) ;
+    }
+    
 #pragma omp barrier
-         if ((k==0)&&(ifc<7))
-            send_buf(ic,ifc+1);
+    if( (k==0) && (ifc<7) ) {
+      send_buf( ic , ifc+1 );
+    }
+    
+    if( (NTHREAD==1) || (k>0) ) {
+      const int io  = (ifc^nmu[ifc])^0x1;
+      const int ofs = ofs_loc[k][ic][ifc][0];
+      const int vol = ofs_loc[k][ic][ifc][1];
+      sub_assign_w2s[io^0x1]( imb[ic][io]+ofs , vol , loc_buf[ic][io]+ofs , r );
+    }
+  }
+}
 
-         if ((NTHREAD==1)||(k>0))
-         {
-            io=(ifc^nmu[ifc])^0x1;
-            ofs=ofs_loc[k][ic][ifc][0];
-            vol=ofs_loc[k][ic][ifc][1];
-            sub_assign_w2s[io^0x1](imb[ic][io]+ofs,vol,loc_buf[ic][io]+ofs,r);
-         }
-      }
+void
+sap_com( const int ic ,
+	 spinor *r )
+{
+#pragma omp parallel
+   {
+     sap_com_th( ic , r ) ;
    }
 }
+

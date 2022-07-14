@@ -717,74 +717,67 @@ static void update_flds2(int vol,int *imb,spinor **s,spinor *psi,spinor *rho)
 
 #endif
 
-void sap(float mu,int isolv,int nmr,spinor *psi,spinor *rho)
+static void
+dosap( const int nbh , const block_t *b , const int nb , const int ic , const int isw ,
+       const float mu , const int isolv , const int nmr , spinor *psi , spinor *rho )
 {
-   int nb,nbh,isw,eoflg,ic,vol;
-   int k,n,nm;
-   spinor **s;
-   block_t *b;
-   tm_parms_t tm;
+  const int vol = isolv ? b->vol/2 : b->vol ;
+  const int k = omp_get_thread_num();
+  const int nm = ic^isw ? nb : nbh ;
+  const tm_parms_t tm = tm_parms();
+  const int eoflg = tm.eoflg;
+  
+  spinor **s = b[k].s;
+  int n  = ic^isw ? nbh+k : k ;
 
-   tm=tm_parms();
-   eoflg=tm.eoflg;
-
-   b=blk_list(SAP_BLOCKS,&nb,&isw);
-   nbh=nb/2;
-   if (isolv)
-      vol=(*b).vol/2;
-   else
-      vol=(*b).vol;
-
-   for (ic=0;ic<2;ic++)
-   {
-#pragma omp parallel private(k,n,nm,s)
-      {
-         k=omp_get_thread_num();
-
-         s=b[k].s;
-
-         if (ic^isw)
-         {
-            n=nbh+k;
-            nm=nb;
-         }
-         else
-         {
-            n=k;
-            nm=nbh;
-         }
-
-         if (isolv)
-         {
-            for (;n<nm;n+=NTHREAD)
-            {
-               assign_s2sblk(SAP_BLOCKS,n,ALL_PTS,rho,1);
-               Dwoo_blk(SAP_BLOCKS,n,0.0f,1,1);
-               Dweo_blk(SAP_BLOCKS,n,1,1);
-               blk_eo_mres(n,mu,nmr);
-               Dwoe_blk(SAP_BLOCKS,n,0,0);
-               Dwoo_blk(SAP_BLOCKS,n,0.0f,0,0);
-
-               if (eoflg==1)
-                  update_flds2(vol,b[n].imb,s,psi,rho);
-               else
-                  update_flds1(vol,b[n].imb,mu,s,psi,rho);
-               Dw_bnd(SAP_BLOCKS,n,0,0);
-            }
-         }
-         else
-         {
-            for (;n<nm;n+=NTHREAD)
-            {
-               assign_s2sblk(SAP_BLOCKS,n,ALL_PTS,rho,1);
-               blk_mres(n,mu,nmr);
-
-               update_flds0(vol,b[n].imb,s,psi,rho);
-               Dw_bnd(SAP_BLOCKS,n,0,0);
-            }
-         }
+  if (isolv) {
+    for( ; n<nm ; n+=NTHREAD ) {
+      assign_s2sblk(SAP_BLOCKS,n,ALL_PTS,rho,1);
+      Dwoo_blk(SAP_BLOCKS,n,0.0f,1,1);
+      Dweo_blk(SAP_BLOCKS,n,1,1);
+      blk_eo_mres(n,mu,nmr);
+      Dwoe_blk(SAP_BLOCKS,n,0,0);
+      Dwoo_blk(SAP_BLOCKS,n,0.0f,0,0);
+	     
+      if (eoflg==1) {
+	update_flds2(vol,b[n].imb,s,psi,rho);
+      } else {
+	update_flds1(vol,b[n].imb,mu,s,psi,rho);
+	Dw_bnd(SAP_BLOCKS,n,0,0);
       }
+    }
+  } else {
+    for( ; n<nm ; n+=NTHREAD ) {
+      assign_s2sblk(SAP_BLOCKS,n,ALL_PTS,rho,1);
+      blk_mres(n,mu,nmr);
+	     
+      update_flds0(vol,b[n].imb,s,psi,rho);
+      Dw_bnd(SAP_BLOCKS,n,0,0);
+    }
+  }
+}
 
-      sap_com(ic,rho);
-   }
+void sap( const float mu, const int isolv, const int nmr, spinor *psi , spinor *rho)
+{
+  int nb = 0 , isw = 0 ;
+  
+  const block_t *b = blk_list(SAP_BLOCKS,&nb,&isw);
+
+  // loop black and white SAP blocks
+#pragma omp parallel
+  {
+    dosap( nb/2 , b , nb , 0 , isw , mu , isolv , nmr , psi , rho ) ;
+
+    #pragma omp barrier
+
+    sap_com_th( 0 , rho ) ;
+
+    #pragma omp barrier
+
+    dosap( nb/2 , b , nb , 1 , isw , mu , isolv , nmr , psi , rho ) ;
+
+    #pragma omp barrier
+    
+    sap_com_th( 1 , rho ) ;
+  }
 }

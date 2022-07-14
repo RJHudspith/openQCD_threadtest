@@ -25,15 +25,15 @@
 #define NPROC2_BLK 1
 #define NPROC3_BLK 1
 
-#define L0 16
-#define L1 16
-#define L2 16
-#define L3 16
+#define L0 32
+#define L1 8
+#define L2 8
+#define L3 8
 
 #define L0_TRD 8
-#define L1_TRD 16
-#define L2_TRD 16
-#define L3_TRD 16
+#define L1_TRD 8
+#define L2_TRD 8
+#define L3_TRD 8
 
 #define NAME_SIZE 128
 
