@@ -55,6 +55,8 @@
 #include "sap.h"
 #include "global.h"
 
+#define JVER_SAPCOM
+
 static int nb,nbh,isw,init=0;
 static int bc,np,nmu[8],sflg[8];
 static int nsbf[2][8],nlbf[2][8],*imb[2][8];
@@ -458,6 +460,8 @@ wait_buf( const int ic ,
   }
 }
 
+#ifdef JVER_SAPCOM
+
 // version intended to be called in a threaded parallel region
 void
 sap_com_th( const int ic , spinor *r )
@@ -526,6 +530,47 @@ sap_com_th( const int ic , spinor *r )
   }
 }
 
+#else
+
+// version intended to be called in a threaded parallel region
+void
+sap_com_th( const int ic , spinor *r )
+{
+  
+  int k,ifc,io,ofs,vol;
+  
+  if (init==0) {
+    error_root(1,1,"sap_com [sap_com.c]",
+	       "Communication buffers are not allocated");
+    return;
+  }
+  
+  k=omp_get_thread_num();
+
+  if (k==0)
+    send_buf(ic,0);
+
+  for (ifc=0;ifc<8;ifc++)
+    {
+      if (k==0)
+	wait_buf(ic,ifc);
+
+#pragma omp barrier
+      if ((k==0)&&(ifc<7))
+	send_buf(ic,ifc+1);
+
+      if ((NTHREAD==1)||(k>0))
+	{
+	  io=(ifc^nmu[ifc])^0x1;
+	  ofs=ofs_loc[k][ic][ifc][0];
+	  vol=ofs_loc[k][ic][ifc][1];
+	  sub_assign_w2s[io^0x1](imb[ic][io]+ofs,vol,loc_buf[ic][io]+ofs,r);
+	}
+    }
+}
+
+#endif
+
 void
 sap_com( const int ic , spinor *r )
 {
@@ -534,4 +579,3 @@ sap_com( const int ic , spinor *r )
      sap_com_th( ic , r ) ;
    }
 }
-
