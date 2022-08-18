@@ -119,13 +119,8 @@ typedef union
 
 static const spinor_dble sd0={{{0.0,0.0}}};
 
-#define JVERD
-
-// checkerboards the 2^4 subblock
-#ifdef JVERD
 static const int cb_map[16] = { 0, 3, 5, 6, 9, 10, 12, 15,
 				1, 2, 4, 7, 8, 11, 13, 14 } ;
-#endif
 
 #if (defined AVX)
 #include "avx.h"
@@ -1426,14 +1421,13 @@ void Dw_dble(const double mu,spinor_dble *s,spinor_dble *r)
      const pauli_dble *sw = swb + 2*(ofs) ;
      const su3_dble *u = ub + 8*k*(VOLUME_TRD/2) ;
      spin_t *so = (spin_t*)(s+ofs) , *ro = (spin_t*)(r+ofs) ;
-
-     // sync up threads here
-     //#pragma omp barrier
      
      if (((cpr[0]==0)&&(bc!=3))||((cpr[0]==(NPROC0-1))&&(bc==0))) {
        for( int isb=0;isb<16;isb++) {
 	 // only need one barrier where we switch cbs
-	 //if( isb == 8 )
+	 #ifdef BARRIERLESS
+	 if( isb%8==0 )
+         #endif
 	 {
             #pragma omp barrier
 	 }
@@ -1460,7 +1454,9 @@ void Dw_dble(const double mu,spinor_dble *s,spinor_dble *r)
      } else {
        for( int isb=0;isb<16;isb++) {
 	 // only need one barrier where we switch cbs
-	 //if( isb == 8 )
+	 #ifdef BARRIERLESS
+	 if( isb%8==0 )
+         #endif
 	 {
             #pragma omp barrier
 	 }
@@ -1502,7 +1498,9 @@ void Dwoe_dble(spinor_dble *s,spinor_dble *r)
        
      if (((cpr[0]==0)&&(bc!=3))||((cpr[0]==(NPROC0-1))&&(bc==0))) {
        for( int isb=0;isb<16;isb++) {
-	 //if( isb == 8 )
+	 #ifdef BARRIERLESS
+	 if( isb%8==0 )
+	 #endif
 	 {
             #pragma omp barrier
 	 }
@@ -1521,7 +1519,9 @@ void Dwoe_dble(spinor_dble *s,spinor_dble *r)
        }
      } else {
        for( int isb=0;isb<16;isb++) {
-	 //if( isb == 8 )
+	 #ifdef BARRIERLESS
+	 if( isb%8==0 )
+	 #endif
 	 {
             #pragma omp barrier
 	 }
@@ -1557,7 +1557,9 @@ void Dweo_dble(spinor_dble *s,spinor_dble *r)
      
      if (((cpr[0]==0)&&(bc!=3))||((cpr[0]==(NPROC0-1))&&(bc==0))) {
        for( int isb=0;isb<16;isb++) {
-	 //if( isb == 8 )
+	 #ifdef BARRIERLESS
+	 if( isb%8==0 )
+	 #endif
 	 {
             #pragma omp barrier
 	 }
@@ -1576,7 +1578,9 @@ void Dweo_dble(spinor_dble *s,spinor_dble *r)
        }
      } else {
        for( int isb=0;isb<16;isb++) {
-	 //if( isb == 8 )
+	 #ifdef BARRIERLESS
+	 if( isb%8==0 )
+	 #endif
 	 {
             #pragma omp barrier
 	 }
@@ -1617,7 +1621,9 @@ void Dwhat_dble(const double mu,spinor_dble *s,spinor_dble *r)
      
     if (((cpr[0]==0)&&(bc!=3))||((cpr[0]==(NPROC0-1))&&(bc==0))) {
       for( int isb=0;isb<16;isb++) {
-	//if( isb == 8 )
+	#ifdef BARRIERLESS
+	if( isb%8==0 )
+        #endif
 	{
             #pragma omp barrier
 	}
@@ -1636,7 +1642,9 @@ void Dwhat_dble(const double mu,spinor_dble *s,spinor_dble *r)
       }
     } else {
       for( int isb=0;isb<16;isb++) {
-	//if( isb == 8 )
+	#ifdef BARRIERLESS
+	if( isb%8==0 )
+	#endif
 	{
             #pragma omp barrier
 	}
